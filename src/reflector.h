@@ -35,6 +35,7 @@ typedef struct {
     char                    info[40];    /* poll version text, e.g. linux_mmdvm-... */
     char                    call[12];    /* last-heard MYCALL1, trimmed */
     bool                    have_call;
+    int64_t                 status_sent_ms; /* monotonic ms of last status reply */
 } client_t;
 
 typedef struct {
@@ -57,6 +58,7 @@ typedef struct {
 
     /* Status reply. */
     bool     status_reply;       /* whether to answer polls with a 0x00 packet */
+    int      status_interval_s;  /* resend cadence; 0 = on connect only */
     char     status_text[DSRP_STATUS_TEXT_LEN];      /* display text, space-padded */
     char     refl_call[DSRP_CALLSIGN_LEN];           /* reflector callsign, space-padded */
 } reflector_t;

@@ -28,6 +28,7 @@ void config_defaults(config_t *cfg)
     snprintf(cfg->callsign, sizeof cfg->callsign, "%s", "DSRP");
     snprintf(cfg->status_text, sizeof cfg->status_text, "%s", "DSRP Reflector");
     cfg->status_reply      = true;
+    cfg->status_interval_s = 0;     /* on connect only — avoids 60s log spam */
     cfg->client_timeout_s  = 180;
     cfg->talker_timeout_ms = 2000;
     cfg->debug             = false;
@@ -113,6 +114,7 @@ int config_load(config_t *cfg, const char *path)
             if (strcasecmp(key, "Callsign") == 0) { copy_str(cfg->callsign, sizeof cfg->callsign, val); known = true; }
             else if (strcasecmp(key, "StatusText") == 0) { copy_str(cfg->status_text, sizeof cfg->status_text, val); known = true; }
             else if (strcasecmp(key, "StatusReply") == 0) { cfg->status_reply = parse_bool(val, cfg->status_reply); known = true; }
+            else if (strcasecmp(key, "StatusInterval") == 0) { cfg->status_interval_s = atoi(val); known = true; }
         } else if (strcasecmp(section, "Timing") == 0) {
             if (strcasecmp(key, "ClientTimeout") == 0) { cfg->client_timeout_s = atoi(val); known = true; }
             else if (strcasecmp(key, "TalkerTimeout") == 0) { cfg->talker_timeout_ms = atoi(val); known = true; }

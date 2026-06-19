@@ -49,7 +49,8 @@ Settings can be supplied via an INI file (`-f`). See
 | `Network`    | `Port`         | UDP listen port (match each MMDVMHost `GatewayPort`) |
 | `Reflector`  | `Callsign`     | Callsign in the link-status reply (≤8 chars)         |
 | `Reflector`  | `StatusText`   | Display text on the repeater (≤20 chars)             |
-| `Reflector`  | `StatusReply`  | Reply to polls so the repeater shows as linked       |
+| `Reflector`  | `StatusReply`  | Reply with a link-status packet so the repeater shows as linked |
+| `Reflector`  | `StatusInterval`| Status resend cadence in seconds; `0` = on connect only |
 | `Timing`     | `ClientTimeout`| Seconds of silence before dropping a repeater        |
 | `Timing`     | `TalkerTimeout`| Milliseconds before releasing a stalled transmission |
 | `Log`        | `Debug`        | Verbose logging                                      |

@@ -218,6 +218,7 @@ void reflector_init(reflector_t *r, int sock, const config_t *cfg)
     r->client_timeout_s  = cfg->client_timeout_s;
     r->talker_timeout_ms = cfg->talker_timeout_ms;
     r->status_reply      = cfg->status_reply;
+    r->status_interval_s = cfg->status_interval_s;
 
     pad_field(r->status_text, DSRP_STATUS_TEXT_LEN, cfg->status_text);
     pad_field(r->refl_call, DSRP_CALLSIGN_LEN, cfg->callsign);
@@ -243,8 +244,19 @@ void reflector_handle(reflector_t *r, unsigned char *buf, size_t len,
         if (added)
             log_msg("repeater connected: %s [%s] (%d connected)",
                     who, r->clients[idx].info, count_clients(r));
-        if (r->status_reply)
-            send_status(r, idx);
+
+        /* Reply on connect, then only every status_interval_s (0 = never again).
+         * MMDVMHost logs every status packet, so per-poll replies spam its log. */
+        if (r->status_reply) {
+            int64_t now = now_ms();
+            bool due = added ||
+                       (r->status_interval_s > 0 &&
+                        now - r->clients[idx].status_sent_ms >= (int64_t)r->status_interval_s * 1000);
+            if (due) {
+                send_status(r, idx);
+                r->clients[idx].status_sent_ms = now;
+            }
+        }
         return;
     }
 

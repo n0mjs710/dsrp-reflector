@@ -23,7 +23,8 @@ typedef struct {
     char port[16];           /* listen port                           */
     char callsign[16];       /* reflector callsign (<=8 chars used)   */
     char status_text[32];    /* status-reply display text (<=20 used) */
-    bool status_reply;       /* reply to polls with a link-status pkt */
+    bool status_reply;       /* reply with a link-status pkt          */
+    int  status_interval_s;  /* resend status every N s (0 = on connect only) */
     int  client_timeout_s;   /* drop a repeater after this idle period */
     int  talker_timeout_ms;  /* release channel if frames stop        */
     bool debug;              /* verbose logging                       */
