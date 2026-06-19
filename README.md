@@ -60,8 +60,19 @@ Point the `[D-Star Network]` section of each repeater's `MMDVM.ini` at the
 reflector's address and port (default DSRP gateway port `20010`); no gateway
 helper is needed.
 
-## Running as a service
+## Install
 
-A sample systemd unit is in [systemd/dsrp-reflector.service](systemd/dsrp-reflector.service).
-Install the binary to `/usr/local/bin`, the config to `/etc/dsrp-reflector.ini`,
-create an unprivileged `dsrp` user, then `systemctl enable --now dsrp-reflector`.
+```
+make
+sudo make install
+sudo systemctl enable --now dsrp-reflector
+```
+
+`make install` copies the binary to `/usr/local/bin`, the config to
+`/etc/dsrp-reflector.ini` (an existing config is preserved; the sample is
+written as `dsrp-reflector.ini.sample` instead), and the systemd unit to
+`/lib/systemd/system`, creating an unprivileged `dsrp` service user. Paths are
+overridable (`PREFIX`, `BINDIR`, `SYSCONFDIR`, `UNITDIR`, `DESTDIR`).
+`sudo make uninstall` reverses it, leaving the config in place.
+
+The systemd unit is [systemd/dsrp-reflector.service](systemd/dsrp-reflector.service).
