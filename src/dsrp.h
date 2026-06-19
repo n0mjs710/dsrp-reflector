@@ -48,6 +48,20 @@
 #define DSRP_SEQ_EOT        0x40U /* end-of-transmission marker bit */
 #define DSRP_SEQ_MASK       0x3FU
 
+/* One D-Star voice frame is 20 ms on the air. */
+#define DSTAR_FRAME_TIME_MS 20U
+
+/* The 41-byte D-Star header sits at this offset in a 0x20/0x22 packet, and the
+ * callsign fields sit at these offsets within that header (DStarHeader.cpp). */
+#define DSRP_OFF_HEADER          8U
+#define DSTAR_HDR_RPT2           3U   /* 8 chars */
+#define DSTAR_HDR_RPT1           11U  /* 8 chars */
+#define DSTAR_HDR_URCALL         19U  /* 8 chars */
+#define DSTAR_HDR_MYCALL1        27U  /* 8 chars */
+#define DSTAR_HDR_MYCALL2        35U  /* 4 chars (suffix) */
+#define DSTAR_LONG_CALLSIGN_LEN  8U
+#define DSTAR_SHORT_CALLSIGN_LEN 4U
+
 /* Link status (0x00) reply layout — total 34 bytes. */
 #define DSRP_STATUS_LEN         34U
 #define DSRP_OFF_STATUS_TEXT    5U   /* 20 chars, space-padded            */

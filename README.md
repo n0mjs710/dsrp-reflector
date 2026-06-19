@@ -56,7 +56,7 @@ Settings can be supplied via an INI file (`-f`). See
 
 ## How a repeater connects
 
-Point the `[D-Star Network]` section of each repeater's `MMDVM-Host.ini` at the
+Point the `[D-Star Network]` section of each repeater's `MMDVM.ini` at the
 reflector's address and port (default DSRP gateway port `20010`); no gateway
 helper is needed.
 

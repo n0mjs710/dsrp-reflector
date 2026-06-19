@@ -135,6 +135,8 @@ int main(int argc, char **argv)
     reflector_init(&refl, sock, &cfg);
 
     log_msg("dsrp-reflector listening on %s:%s as \"%.8s\"", cfg.address, cfg.port, cfg.callsign);
+    log_msg("config: client_timeout=%ds talker_timeout=%dms status_reply=%s",
+            cfg.client_timeout_s, cfg.talker_timeout_ms, cfg.status_reply ? "on" : "off");
 
     struct pollfd pfd = { .fd = sock, .events = POLLIN };
 

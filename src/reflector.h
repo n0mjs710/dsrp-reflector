@@ -32,6 +32,9 @@ typedef struct {
     struct sockaddr_storage addr;
     socklen_t               addrlen;
     time_t                  last_poll;   /* wall-clock seconds of last poll */
+    char                    info[40];    /* poll version text, e.g. linux_mmdvm-... */
+    char                    call[12];    /* last-heard MYCALL1, trimmed */
+    bool                    have_call;
 } client_t;
 
 typedef struct {
@@ -43,6 +46,10 @@ typedef struct {
     int      talker;          /* index into clients[], valid when talking */
     uint16_t session_id;      /* DSRP session id of the active over */
     int64_t  last_frame_ms;   /* monotonic ms of last relayed frame */
+    int64_t  talk_start_ms;   /* monotonic ms the over started */
+    uint32_t talk_frames;     /* voice/data frames relayed this over */
+    char     talk_mycall[12]; /* MYCALL1 of the active over (for end log) */
+    char     talk_urcall[12]; /* URCALL of the active over (for end log)  */
 
     /* Tunables. */
     int      client_timeout_s;   /* drop a repeater after this long with no poll */

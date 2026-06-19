@@ -69,6 +69,14 @@ static bool addr_eq(const struct sockaddr_storage *a, const struct sockaddr_stor
 
 /* ----- client table ------------------------------------------------------ */
 
+static int count_clients(const reflector_t *r)
+{
+    int n = 0;
+    for (int i = 0; i < MAX_CLIENTS; i++)
+        n += r->clients[i].used ? 1 : 0;
+    return n;
+}
+
 static int find_client(const reflector_t *r, const struct sockaddr_storage *src)
 {
     for (int i = 0; i < MAX_CLIENTS; i++)
@@ -77,28 +85,25 @@ static int find_client(const reflector_t *r, const struct sockaddr_storage *src)
     return -1;
 }
 
-/* Return index of the client at src, adding it if new. -1 if the table is full. */
+/* Return index of the client at src, adding it if new. Sets *added when a new
+ * entry was created. Returns -1 if the table is full. */
 static int find_or_add_client(reflector_t *r, const struct sockaddr_storage *src,
-                              socklen_t srclen)
+                              socklen_t srclen, bool *added)
 {
+    *added = false;
+
     int idx = find_client(r, src);
     if (idx >= 0)
         return idx;
 
     for (int i = 0; i < MAX_CLIENTS; i++) {
         if (!r->clients[i].used) {
-            r->clients[i].used    = true;
-            r->clients[i].addr    = *src;
-            r->clients[i].addrlen = srclen;
+            memset(&r->clients[i], 0, sizeof r->clients[i]);
+            r->clients[i].used      = true;
+            r->clients[i].addr      = *src;
+            r->clients[i].addrlen   = srclen;
             r->clients[i].last_poll = time(NULL);
-
-            int n = 0;
-            for (int j = 0; j < MAX_CLIENTS; j++)
-                n += r->clients[j].used ? 1 : 0;
-
-            char who[64];
-            addr_str(src, who, sizeof who);
-            log_msg("repeater connected: %s (%d total)", who, n);
+            *added = true;
             return i;
         }
     }
@@ -107,6 +112,36 @@ static int find_or_add_client(reflector_t *r, const struct sockaddr_storage *src
     addr_str(src, who, sizeof who);
     log_err("client table full (%d); rejecting %s", MAX_CLIENTS, who);
     return -1;
+}
+
+/* Copy a fixed-width callsign field into a trimmed, sanitized C string. */
+static void callsign_str(char *out, size_t outsz, const unsigned char *src, size_t len)
+{
+    size_t n = 0;
+    for (size_t i = 0; i < len && n + 1 < outsz; i++) {
+        unsigned char c = src[i];
+        if (c == 0)
+            break;   /* never valid in a callsign; treat as terminator */
+        out[n++] = (c >= 0x20 && c < 0x7f) ? (char)c : '?';
+    }
+    while (n > 0 && out[n - 1] == ' ')
+        n--;
+    out[n] = '\0';
+}
+
+/* Extract the NUL-terminated version text from a poll packet (text at offset 5). */
+static void extract_poll_text(const unsigned char *buf, size_t len,
+                              char *out, size_t outsz)
+{
+    size_t avail = (len > 6U) ? len - 6U : 0U;   /* total = 6 + textlen */
+    size_t n = 0;
+    for (size_t i = 0; i < avail && n + 1 < outsz; i++) {
+        unsigned char c = buf[5U + i];
+        if (c == 0)
+            break;
+        out[n++] = (c >= 0x20 && c < 0x7f) ? (char)c : '?';
+    }
+    out[n] = '\0';
 }
 
 /* ----- core relay -------------------------------------------------------- */
@@ -151,7 +186,11 @@ static void release_talker(reflector_t *r, const char *reason)
 {
     if (!r->talking)
         return;
-    log_msg("channel released (%s)", reason);
+
+    double secs = (double)r->talk_frames * (double)DSTAR_FRAME_TIME_MS / 1000.0;
+    log_msg("TX end: %s -> %s | %.1fs, %u frames (%s)",
+            r->talk_mycall, r->talk_urcall, secs, r->talk_frames, reason);
+
     r->talking    = false;
     r->talker     = -1;
     r->session_id = 0;
@@ -190,12 +229,20 @@ void reflector_handle(reflector_t *r, unsigned char *buf, size_t len,
     if (len < 5U || memcmp(buf, DSRP_TAG, DSRP_TAG_LEN) != 0)
         return;
 
+    char who[64];
+    addr_str(src, who, sizeof who);
+
     switch (buf[DSRP_OFF_TYPE]) {
     case DSRP_TYPE_POLL: {
-        int idx = find_or_add_client(r, src, srclen);
+        bool added = false;
+        int idx = find_or_add_client(r, src, srclen, &added);
         if (idx < 0)
             return;
         r->clients[idx].last_poll = time(NULL);
+        extract_poll_text(buf, len, r->clients[idx].info, sizeof r->clients[idx].info);
+        if (added)
+            log_msg("repeater connected: %s [%s] (%d connected)",
+                    who, r->clients[idx].info, count_clients(r));
         if (r->status_reply)
             send_status(r, idx);
         return;
@@ -205,23 +252,43 @@ void reflector_handle(reflector_t *r, unsigned char *buf, size_t len,
     case DSRP_TYPE_HEADER_BUSY: {
         if (len < DSRP_HEADER_LEN)
             return;
-        int idx = find_or_add_client(r, src, srclen);
+        bool added = false;
+        int idx = find_or_add_client(r, src, srclen, &added);
         if (idx < 0)
             return;
+        if (added)
+            log_msg("repeater connected: %s (%d connected)", who, count_clients(r));
 
         uint16_t id = dsrp_get_id(buf);
 
         if (r->talking && r->talker != idx) {
-            log_dbg("header from idx %d ignored; idx %d holds the channel", idx, r->talker);
+            log_dbg("header from %s (id %04X) ignored; %s holds the channel",
+                    who, id, r->clients[r->talker].call);
             return;
         }
 
+        /* Parse callsigns from the embedded 41-byte D-Star header. */
+        const unsigned char *h = buf + DSRP_OFF_HEADER;
+        char my1[12], my2[8], ur[12], r1[12], r2[12];
+        callsign_str(my1, sizeof my1, h + DSTAR_HDR_MYCALL1, DSTAR_LONG_CALLSIGN_LEN);
+        callsign_str(my2, sizeof my2, h + DSTAR_HDR_MYCALL2, DSTAR_SHORT_CALLSIGN_LEN);
+        callsign_str(ur,  sizeof ur,  h + DSTAR_HDR_URCALL,  DSTAR_LONG_CALLSIGN_LEN);
+        callsign_str(r1,  sizeof r1,  h + DSTAR_HDR_RPT1,    DSTAR_LONG_CALLSIGN_LEN);
+        callsign_str(r2,  sizeof r2,  h + DSTAR_HDR_RPT2,    DSTAR_LONG_CALLSIGN_LEN);
+
         if (!r->talking) {
-            char who[64];
-            addr_str(src, who, sizeof who);
-            log_msg("transmission started by %s (id %04X)", who, id);
-            r->talking = true;
-            r->talker  = idx;
+            r->talking       = true;
+            r->talker        = idx;
+            r->talk_start_ms = now_ms();
+            r->talk_frames   = 0U;
+            snprintf(r->talk_mycall, sizeof r->talk_mycall, "%s", my1);
+            snprintf(r->talk_urcall, sizeof r->talk_urcall, "%s", ur);
+
+            snprintf(r->clients[idx].call, sizeof r->clients[idx].call, "%s", my1);
+            r->clients[idx].have_call = true;
+
+            log_msg("TX start: %s/%s -> %s via %s/%s | %s id=%04X -> %d listener(s)",
+                    my1, my2, ur, r1, r2, who, id, count_clients(r) - 1);
         }
         r->session_id    = id;
         r->last_frame_ms = now_ms();
@@ -243,6 +310,7 @@ void reflector_handle(reflector_t *r, unsigned char *buf, size_t len,
             return;   /* not the active stream */
 
         r->last_frame_ms = now_ms();
+        r->talk_frames++;
         bool eot = (buf[DSRP_OFF_SEQ] & DSRP_SEQ_EOT) != 0U;
 
         relay(r, buf, len, idx, DSRP_TYPE_DATA);
@@ -271,12 +339,18 @@ void reflector_tick(reflector_t *r)
         if (!r->clients[i].used)
             continue;
         if (now - r->clients[i].last_poll > r->client_timeout_s) {
-            char who[64];
-            addr_str(&r->clients[i].addr, who, sizeof who);
-            log_msg("repeater timed out: %s", who);
             if (r->talking && r->talker == i)
                 release_talker(r, "talker timed out");
             r->clients[i].used = false;
+
+            char who[64];
+            addr_str(&r->clients[i].addr, who, sizeof who);
+            if (r->clients[i].have_call)
+                log_msg("repeater disconnected (timeout): %s [%s] (%d connected)",
+                        who, r->clients[i].call, count_clients(r));
+            else
+                log_msg("repeater disconnected (timeout): %s (%d connected)",
+                        who, count_clients(r));
         }
     }
 
