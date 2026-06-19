@@ -63,8 +63,18 @@ In each repeater's `MMDVM.ini`:
   - `Enable=1`
   - `GatewayAddress=<reflector IP>`
   - `GatewayPort=20010` (the reflector's listen port)
+  - `LocalAddress=0.0.0.0` — **change this from the default `127.0.0.1`.** It is
+    the local bind for MMDVMHost's socket, not the reflector address. The
+    `127.0.0.1` default assumes a gateway on the same machine; for a remote
+    reflector use `0.0.0.0` (or blank, or this host's LAN IP). Loopback cannot
+    reach a remote reflector.
   - `LocalPort=20011` (where this MMDVMHost receives; default is fine)
 - `[D-Star]` — set **`RemoteGateway=1`**.
+
+A repeater behind NAT needs no port forwarding: it initiates to the reflector,
+and the reflector always replies to the observed source address, so the NAT
+mapping (kept alive by the 60 s polls) carries the return traffic. Only the
+reflector's `20010` must be reachable.
 
 `RemoteGateway=1` is important for this topology. The reflector relays each
 transmission's header verbatim, including the *originating* repeater's RPT1/RPT2
