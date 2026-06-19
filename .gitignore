@@ -1,0 +1,12 @@
+# Build artifacts
+*.o
+*.a
+*.so
+*.d
+/build/
+dsrp-reflector
+
+# Editor / OS
+*.swp
+.vscode/
+.DS_Store
