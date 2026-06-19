@@ -97,7 +97,39 @@ shared notion of who currently holds the channel).
 - **No echo**: never relay a stream back to its originator.
 - **Poll reply** (optional): respond to polls with a `0x00` status packet.
 
-## 5. Implementation notes
+## 5. Jitter / loss tolerance — why a single reflector is enough
+
+A reasonable worry: MMDVMHost normally talks to a *local* gateway, so won't a
+remote reflector expose it to internet jitter/loss/reordering it can't handle?
+We verified the receive paths in both code bases; the answer is no — a single
+reflector is no worse than the de facto standard (DStarGateway/ircDDBGateway):
+
+- **MMDVMHost has no classic jitter buffer.** Incoming network frames are pulled
+  from a ring buffer each clock tick and pushed toward the modem immediately
+  (`DStarNetwork`/`DStarControl::writeNetwork`). The real cushion is the modem
+  TX FIFO (~100-200 ms), metered by `hasDStarSpace()`.
+- It conceals **loss** by inserting silence/repeat frames keyed on the DSRP
+  sequence byte (`insertSilence`), counting them as packet loss; a 300 ms stall
+  guard fills longer gaps.
+- It is **hostile to reordering**: a late/out-of-order frame computes as a large
+  forward sequence gap (mod 21) and is rejected, not resequenced.
+- **DStarGateway is a pure relay.** `CRepeaterHandler::process(CAMBEData&)`
+  forwards each reflector frame to the repeater the instant it arrives over the
+  internet — no buffering, reordering, or concealment. So MMDVMHost is *already*
+  fed internet-jittered audio today; the local gateway hop never de-jittered it.
+
+Conclusion: all de-jitter/concealment lives in MMDVMHost + the modem FIFO,
+downstream of any gateway, and is identical whether frames arrive via a local
+relay gateway or straight from a remote reflector. A single reflector is
+therefore "equally challenged," and avoids deploying a second app per repeater.
+
+A future option (not required): a thin *local* gateway proxy could add a real
+3-5 frame (60-100 ms) de-jitter + reorder + loss-conceal buffer on the
+toward-repeater direction, handing MMDVMHost a pristine localhost stream — a
+strict improvement over the status quo. We keep DSRP end-to-end so the reflector
+needs no change if we ever add it.
+
+## 6. Implementation notes
 
 - Dependency-free **C11**, same mold as `ipsc2hbpc`: one UDP socket, a small
   fixed-size client table, a monotonic clock for poll/EOT timeouts.
