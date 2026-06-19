@@ -57,9 +57,21 @@ Settings can be supplied via an INI file (`-f`). See
 
 ## How a repeater connects
 
-Point the `[D-Star Network]` section of each repeater's `MMDVM.ini` at the
-reflector's address and port (default DSRP gateway port `20010`); no gateway
-helper is needed.
+In each repeater's `MMDVM.ini`:
+
+- `[D-Star Network]` — point it at the reflector; no gateway helper is needed:
+  - `Enable=1`
+  - `GatewayAddress=<reflector IP>`
+  - `GatewayPort=20010` (the reflector's listen port)
+  - `LocalPort=20011` (where this MMDVMHost receives; default is fine)
+- `[D-Star]` — set **`RemoteGateway=1`**.
+
+`RemoteGateway=1` is important for this topology. The reflector relays each
+transmission's header verbatim, including the *originating* repeater's RPT1/RPT2
+callsign. With `RemoteGateway=1`, each receiving MMDVMHost rewrites those fields
+to its **own** callsign before transmitting, so every node correctly identifies
+as itself on the air. Without it, repeaters would transmit the sender's callsign
+in the RPT fields (audio still works, but the on-air ID would be wrong).
 
 ## Install
 
