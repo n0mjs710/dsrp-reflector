@@ -127,9 +127,53 @@ A future option (not required): a thin *local* gateway proxy could add a real
 3-5 frame (60-100 ms) de-jitter + reorder + loss-conceal buffer on the
 toward-repeater direction, handing MMDVMHost a pristine localhost stream — a
 strict improvement over the status quo. We keep DSRP end-to-end so the reflector
-needs no change if we ever add it.
+needs no change if we ever add it. See §6 (optional shim).
 
-## 6. Implementation notes
+## 6. Known limitation: aggressive NAT, and the optional local shim
+
+MMDVMHost hardcodes its DSRP keepalive poll at **60 s** (`m_pollTimer(1000U,
+60U)` in `DStarNetwork.cpp`; no config knob). A repeater behind NAT relies on
+those outbound polls to keep its UDP mapping open. Most NATs use a UDP idle
+timeout of 2-5 min, so 60 s polling is fine. A *pathologically aggressive* NAT
+(sub-60 s UDP timeout, e.g. some cheap CGNAT) can drop the mapping between polls.
+
+Symptom is narrow and self-healing, not a hard failure:
+- Only affects an **idle, listening** repeater. Any outbound traffic re-opens
+  the mapping instantly, so a repeater whose local user is transmitting is fine,
+  and each 60 s poll re-establishes the path regardless.
+- Effect: such a repeater can be "deaf" for up to ~60 s windows and miss the
+  **start** of an incoming call until its next poll reopens the mapping.
+
+Why the reflector can't fully fix this from its side: NAT mappings are reliably
+refreshed by **outbound** (repeater -> reflector) traffic; many NATs don't reset
+the timer on inbound packets. So reflector-initiated keepalives are an
+unreliable half-measure. The dependable fix is more frequent traffic *from the
+repeater side* — which means a small local helper, since MMDVMHost's interval
+isn't tunable.
+
+### Optional local shim (build only if needed)
+
+A tiny proxy that runs on the repeater host, that MMDVMHost points at over
+loopback (no NAT in between), which passes DSRP through to the reflector. Because
+we kept DSRP end-to-end, the reflector needs **no changes**. Scope, as optional
+parameters:
+
+- **NAT keepalive** (the trigger for building it): inject an extra `0x0A` poll
+  to the reflector every ~10-20 s in addition to MMDVMHost's. The reflector
+  already handles polls idempotently. Configurable interval.
+- **Jitter buffer**: hold a small playout buffer (configurable depth, e.g. 3-5
+  frames / 60-100 ms) on the reflector -> MMDVMHost direction and release frames
+  on a steady 20 ms cadence.
+- **Reorder alignment**: resequence within the buffer window using the DSRP
+  sequence byte before handing frames to MMDVMHost (which itself rejects
+  out-of-order frames).
+- **Loss concealment** (optional): fill gaps with repeat/silence frames.
+
+All four are well-understood and quick to implement; none require touching the
+reflector. The shim would be its own small program (one repo, two binaries, or a
+sibling) sharing `dsrp.h`/log/config.
+
+## 7. Implementation notes
 
 - Dependency-free **C11**, same mold as `ipsc2hbpc`: one UDP socket, a small
   fixed-size client table, a monotonic clock for poll/EOT timeouts.
