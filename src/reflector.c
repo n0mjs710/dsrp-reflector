@@ -119,10 +119,8 @@ static void send_status(reflector_t *r, int idx)
     memcpy(p, DSRP_TAG, DSRP_TAG_LEN);
     p[DSRP_OFF_TYPE] = DSRP_TYPE_STATUS;
 
-    /* 20-char status text, space padded. */
-    memset(p + DSRP_OFF_STATUS_TEXT, ' ', DSRP_STATUS_TEXT_LEN);
-    static const char label[] = "DSRP Reflector";
-    memcpy(p + DSRP_OFF_STATUS_TEXT, label, sizeof label - 1U);
+    /* 20-char status text, already space-padded in r->status_text. */
+    memcpy(p + DSRP_OFF_STATUS_TEXT, r->status_text, DSRP_STATUS_TEXT_LEN);
 
     p[DSRP_OFF_STATUS_CODE] = DSTAR_LINKED_LOOPBACK;
     memcpy(p + DSRP_OFF_STATUS_REFL, r->refl_call, DSRP_CALLSIGN_LEN);
@@ -161,21 +159,29 @@ static void release_talker(reflector_t *r, const char *reason)
 
 /* ----- public API -------------------------------------------------------- */
 
-void reflector_init(reflector_t *r, int sock, const char *refl_call)
+/* Copy src into a fixed, space-padded field (no NUL terminator). */
+static void pad_field(char *dst, size_t width, const char *src)
+{
+    memset(dst, ' ', width);
+    if (src != NULL) {
+        size_t n = strlen(src);
+        if (n > width)
+            n = width;
+        memcpy(dst, src, n);
+    }
+}
+
+void reflector_init(reflector_t *r, int sock, const config_t *cfg)
 {
     memset(r, 0, sizeof *r);
     r->sock              = sock;
     r->talker            = -1;
-    r->client_timeout_s  = 180;   /* ~3 missed 60s polls */
-    r->talker_timeout_ms = 2000;  /* release if frames stop (lost EOT) */
+    r->client_timeout_s  = cfg->client_timeout_s;
+    r->talker_timeout_ms = cfg->talker_timeout_ms;
+    r->status_reply      = cfg->status_reply;
 
-    memset(r->refl_call, ' ', DSRP_CALLSIGN_LEN);
-    if (refl_call != NULL) {
-        size_t n = strlen(refl_call);
-        if (n > DSRP_CALLSIGN_LEN)
-            n = DSRP_CALLSIGN_LEN;
-        memcpy(r->refl_call, refl_call, n);
-    }
+    pad_field(r->status_text, DSRP_STATUS_TEXT_LEN, cfg->status_text);
+    pad_field(r->refl_call, DSRP_CALLSIGN_LEN, cfg->callsign);
 }
 
 void reflector_handle(reflector_t *r, unsigned char *buf, size_t len,
@@ -190,7 +196,8 @@ void reflector_handle(reflector_t *r, unsigned char *buf, size_t len,
         if (idx < 0)
             return;
         r->clients[idx].last_poll = time(NULL);
-        send_status(r, idx);
+        if (r->status_reply)
+            send_status(r, idx);
         return;
     }
 

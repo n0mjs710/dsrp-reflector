@@ -1,0 +1,30 @@
+[Unit]
+Description=DSRP D-Star party-line reflector for MMDVMHost repeaters
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/dsrp-reflector -f /etc/dsrp-reflector.ini
+Restart=on-failure
+RestartSec=5
+
+# Run unprivileged (port 20010 needs no root). Create the user with:
+#   useradd --system --no-create-home --shell /usr/sbin/nologin dsrp
+User=dsrp
+Group=dsrp
+
+# Hardening
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+PrivateDevices=true
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictAddressFamilies=AF_INET AF_INET6
+RestrictNamespaces=true
+MemoryDenyWriteExecute=true
+
+[Install]
+WantedBy=multi-user.target

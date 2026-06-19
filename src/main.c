@@ -11,6 +11,7 @@
  *   GNU General Public License for more details.
  */
 
+#include "config.h"
 #include "log.h"
 #include "reflector.h"
 
@@ -24,9 +25,6 @@
 #include <string.h>
 #include <unistd.h>
 
-#define DEFAULT_PORT      "20010"
-#define DEFAULT_BIND      "0.0.0.0"
-#define DEFAULT_CALLSIGN  "DSRP"
 #define RECV_BUFLEN       100
 #define TICK_INTERVAL_MS  250
 
@@ -75,47 +73,68 @@ static void usage(const char *argv0)
 {
     fprintf(stderr,
         "Usage: %s [options]\n"
-        "  -b ADDR   bind address (default %s)\n"
-        "  -p PORT   listen port (default %s)\n"
-        "  -c CALL   reflector callsign in status replies (<=8 chars, default %s)\n"
-        "  -v        verbose (debug logging)\n"
-        "  -h        this help\n",
-        argv0, DEFAULT_BIND, DEFAULT_PORT, DEFAULT_CALLSIGN);
+        "  -f FILE   read settings from an INI config file\n"
+        "  -b ADDR   bind address (overrides config)\n"
+        "  -p PORT   listen port (overrides config)\n"
+        "  -c CALL   reflector callsign, <=8 chars (overrides config)\n"
+        "  -v        verbose / debug logging (overrides config)\n"
+        "  -h        this help\n"
+        "\n"
+        "CLI flags take precedence over the config file. Defaults: bind 0.0.0.0,\n"
+        "port 20010, callsign DSRP.\n",
+        argv0);
 }
 
 int main(int argc, char **argv)
 {
-    const char *bind_addr = DEFAULT_BIND;
-    const char *port      = DEFAULT_PORT;
-    const char *callsign  = DEFAULT_CALLSIGN;
-    int verbose = 0;
+    config_t cfg;
+    config_defaults(&cfg);
 
+    /* Pass 1: load the config file (if any) before applying CLI overrides. */
     int opt;
-    while ((opt = getopt(argc, argv, "b:p:c:vh")) != -1) {
+    while ((opt = getopt(argc, argv, "f:b:p:c:vh")) != -1) {
         switch (opt) {
-        case 'b': bind_addr = optarg; break;
-        case 'p': port      = optarg; break;
-        case 'c': callsign  = optarg; break;
-        case 'v': verbose   = 1;      break;
-        case 'h': usage(argv[0]); return 0;
-        default:  usage(argv[0]); return 2;
+        case 'f':
+            if (config_load(&cfg, optarg) != 0)
+                return 1;
+            break;
+        case 'h':
+            usage(argv[0]);
+            return 0;
+        case '?':
+            usage(argv[0]);
+            return 2;
+        default:
+            break;   /* overrides handled in pass 2 */
         }
     }
 
-    log_init(verbose);
+    /* Pass 2: command-line overrides win over the config file. */
+    optind = 1;
+    while ((opt = getopt(argc, argv, "f:b:p:c:vh")) != -1) {
+        switch (opt) {
+        case 'b': snprintf(cfg.address, sizeof cfg.address, "%s", optarg); break;
+        case 'p': snprintf(cfg.port, sizeof cfg.port, "%s", optarg); break;
+        case 'c': snprintf(cfg.callsign, sizeof cfg.callsign, "%s", optarg); break;
+        case 'v': cfg.debug = true; break;
+        default: break;
+        }
+    }
+
+    log_init(cfg.debug);
 
     signal(SIGINT, on_signal);
     signal(SIGTERM, on_signal);
     signal(SIGPIPE, SIG_IGN);
 
-    int sock = open_socket(bind_addr, port);
+    int sock = open_socket(cfg.address, cfg.port);
     if (sock < 0)
         return 1;
 
     reflector_t refl;
-    reflector_init(&refl, sock, callsign);
+    reflector_init(&refl, sock, &cfg);
 
-    log_msg("dsrp-reflector listening on %s:%s as \"%.8s\"", bind_addr, port, callsign);
+    log_msg("dsrp-reflector listening on %s:%s as \"%.8s\"", cfg.address, cfg.port, cfg.callsign);
 
     struct pollfd pfd = { .fd = sock, .events = POLLIN };
 

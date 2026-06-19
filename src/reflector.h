@@ -14,6 +14,7 @@
 #ifndef REFLECTOR_H
 #define REFLECTOR_H
 
+#include "config.h"
 #include "dsrp.h"
 
 #include <netinet/in.h>
@@ -47,12 +48,14 @@ typedef struct {
     int      client_timeout_s;   /* drop a repeater after this long with no poll */
     int      talker_timeout_ms;  /* release the lock if frames stop (lost EOT) */
 
-    /* Reflector callsign reported in status replies (space-padded, 8 chars). */
-    char     refl_call[DSRP_CALLSIGN_LEN];
+    /* Status reply. */
+    bool     status_reply;       /* whether to answer polls with a 0x00 packet */
+    char     status_text[DSRP_STATUS_TEXT_LEN];      /* display text, space-padded */
+    char     refl_call[DSRP_CALLSIGN_LEN];           /* reflector callsign, space-padded */
 } reflector_t;
 
-/* refl_call may be NULL or shorter than 8; it is space-padded/truncated. */
-void reflector_init(reflector_t *r, int sock, const char *refl_call);
+/* Initialize from cfg. Strings are space-padded/truncated to the wire widths. */
+void reflector_init(reflector_t *r, int sock, const config_t *cfg);
 
 /* Handle one received UDP datagram from src. */
 void reflector_handle(reflector_t *r, unsigned char *buf, size_t len,

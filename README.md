@@ -16,13 +16,52 @@ repeater.
   repeater C ─DSRP─┘
 ```
 
-## Status
+See [DESIGN.md](DESIGN.md) for the protocol analysis, bit-rate figures, and
+reflector behavior.
 
-Early design stage. See [DESIGN.md](DESIGN.md) for the protocol analysis,
-bit-rate figures, and reflector behavior.
+## Build
+
+```
+make
+```
+
+Dependency-free C11; needs only a POSIX libc. Produces `./dsrp-reflector`.
+
+## Run
+
+```
+./dsrp-reflector                       # defaults: bind 0.0.0.0:20010, callsign DSRP
+./dsrp-reflector -f dsrp-reflector.ini # read settings from a config file
+./dsrp-reflector -p 20010 -c N0MJS -v  # command-line overrides
+```
+
+Command-line flags (`-b` address, `-p` port, `-c` callsign, `-v` verbose) take
+precedence over the config file.
+
+## Configuration
+
+Settings can be supplied via an INI file (`-f`). See
+[dsrp-reflector.ini](dsrp-reflector.ini) for the full annotated sample:
+
+| Section      | Key            | Meaning                                              |
+|--------------|----------------|------------------------------------------------------|
+| `Network`    | `Address`      | Bind address (`0.0.0.0`, `::`, or a specific IP)     |
+| `Network`    | `Port`         | UDP listen port (match each MMDVMHost `GatewayPort`) |
+| `Reflector`  | `Callsign`     | Callsign in the link-status reply (≤8 chars)         |
+| `Reflector`  | `StatusText`   | Display text on the repeater (≤20 chars)             |
+| `Reflector`  | `StatusReply`  | Reply to polls so the repeater shows as linked       |
+| `Timing`     | `ClientTimeout`| Seconds of silence before dropping a repeater        |
+| `Timing`     | `TalkerTimeout`| Milliseconds before releasing a stalled transmission |
+| `Log`        | `Debug`        | Verbose logging                                      |
 
 ## How a repeater connects
 
 Point the `[D-Star Network]` section of each repeater's `MMDVM-Host.ini` at the
 reflector's address and port (default DSRP gateway port `20010`); no gateway
 helper is needed.
+
+## Running as a service
+
+A sample systemd unit is in [systemd/dsrp-reflector.service](systemd/dsrp-reflector.service).
+Install the binary to `/usr/local/bin`, the config to `/etc/dsrp-reflector.ini`,
+create an unprivileged `dsrp` user, then `systemctl enable --now dsrp-reflector`.
