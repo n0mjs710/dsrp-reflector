@@ -5,7 +5,7 @@ Wants=network-online.target
 
 [Service]
 Type=simple
-ExecStart=/usr/local/bin/dsrp-reflector -f /etc/dsrp-reflector.ini
+ExecStart=/usr/local/bin/dsrp-reflector -c /etc/dsrp-reflector.ini
 Restart=on-failure
 RestartSec=5
 

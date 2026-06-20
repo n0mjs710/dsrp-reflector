@@ -27,6 +27,7 @@ typedef struct {
     int  status_interval_s;  /* resend status every N s (0 = on connect only) */
     int  client_timeout_s;   /* drop a repeater after this idle period */
     int  talker_timeout_ms;  /* release channel if frames stop        */
+    int  roster_interval_s;  /* log connected repeaters every N s (0 = off) */
     bool debug;              /* verbose logging                       */
 } config_t;
 

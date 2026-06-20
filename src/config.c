@@ -31,6 +31,7 @@ void config_defaults(config_t *cfg)
     cfg->status_interval_s = 0;     /* on connect only — avoids 60s log spam */
     cfg->client_timeout_s  = 180;
     cfg->talker_timeout_ms = 2000;
+    cfg->roster_interval_s = 300;   /* log who's connected every 5 min */
     cfg->debug             = false;
 }
 
@@ -120,6 +121,7 @@ int config_load(config_t *cfg, const char *path)
             else if (strcasecmp(key, "TalkerTimeout") == 0) { cfg->talker_timeout_ms = atoi(val); known = true; }
         } else if (strcasecmp(section, "Log") == 0) {
             if (strcasecmp(key, "Debug") == 0) { cfg->debug = parse_bool(val, cfg->debug); known = true; }
+            else if (strcasecmp(key, "RosterInterval") == 0) { cfg->roster_interval_s = atoi(val); known = true; }
         }
 
         if (!known)

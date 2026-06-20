@@ -31,16 +31,16 @@ Dependency-free C11; needs only a POSIX libc. Produces `./dsrp-reflector`.
 
 ```
 ./dsrp-reflector                       # defaults: bind 0.0.0.0:20010, callsign DSRP
-./dsrp-reflector -f dsrp-reflector.ini # read settings from a config file
-./dsrp-reflector -p 20010 -c N0MJS -v  # command-line overrides
+./dsrp-reflector -c dsrp-reflector.ini # read settings from a config file
+./dsrp-reflector -p 20010 -C N0MJS -v  # command-line overrides
 ```
 
-Command-line flags (`-b` address, `-p` port, `-c` callsign, `-v` verbose) take
-precedence over the config file.
+Command-line flags (`-c` config file, `-b` address, `-p` port, `-C` callsign,
+`-v` verbose) take precedence over the config file.
 
 ## Configuration
 
-Settings can be supplied via an INI file (`-f`). See
+Settings can be supplied via an INI file (`-c`). See
 [dsrp-reflector.ini](dsrp-reflector.ini) for the full annotated sample:
 
 | Section      | Key            | Meaning                                              |
@@ -54,6 +54,26 @@ Settings can be supplied via an INI file (`-f`). See
 | `Timing`     | `ClientTimeout`| Seconds of silence before dropping a repeater        |
 | `Timing`     | `TalkerTimeout`| Milliseconds before releasing a stalled transmission |
 | `Log`        | `Debug`        | Verbose logging                                      |
+| `Log`        | `RosterInterval`| Log connected repeaters every N seconds; `0` = off (default 300) |
+
+## Monitoring connected repeaters
+
+Connects, disconnects, and each transmission are logged as they happen. In
+addition, every `RosterInterval` seconds (default 300; set `0` to disable) the
+reflector logs the full list of currently connected repeaters — one per line,
+with source `IP:port`, last-heard callsign, and the repeater's poll version
+string — so an operator watching the journal can see at a glance who is and
+isn't connected:
+
+```
+I: connected repeaters: 2
+I:   198.51.100.7:20011     N0MJS    [linux_mmdvm-20210101]
+I:   203.0.113.4:20011      W0XYZ    [linux_mmdvm-20210101]
+```
+
+A repeater that hasn't keyed up yet shows `-` for the callsign (its address is
+still known from its polls). Under systemd the lines land in the journal:
+`journalctl -u dsrp-reflector -f`.
 
 ## How a repeater connects
 

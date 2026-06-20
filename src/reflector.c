@@ -144,6 +144,25 @@ static void extract_poll_text(const unsigned char *buf, size_t len,
     out[n] = '\0';
 }
 
+/* Log the currently connected repeaters, one per line, with address and the
+ * best identifying information we have (last-heard callsign and poll version). */
+static void log_roster(const reflector_t *r)
+{
+    int n = count_clients(r);
+    log_msg("connected repeaters: %d", n);
+    for (int i = 0; i < MAX_CLIENTS; i++) {
+        if (!r->clients[i].used)
+            continue;
+        char who[64];
+        addr_str(&r->clients[i].addr, who, sizeof who);
+        const char *call = r->clients[i].have_call ? r->clients[i].call : "-";
+        if (r->clients[i].info[0] != '\0')
+            log_msg("  %-24s %-8s [%s]", who, call, r->clients[i].info);
+        else
+            log_msg("  %-24s %-8s", who, call);
+    }
+}
+
 /* ----- core relay -------------------------------------------------------- */
 
 /* Send a status (0x00) reply so the repeater's display shows it is linked. */
@@ -217,6 +236,8 @@ void reflector_init(reflector_t *r, int sock, const config_t *cfg)
     r->talker            = -1;
     r->client_timeout_s  = cfg->client_timeout_s;
     r->talker_timeout_ms = cfg->talker_timeout_ms;
+    r->roster_interval_s = cfg->roster_interval_s;
+    r->last_roster       = time(NULL);
     r->status_reply      = cfg->status_reply;
     r->status_interval_s = cfg->status_interval_s;
 
@@ -368,4 +389,10 @@ void reflector_tick(reflector_t *r)
 
     if (r->talking && now_ms() - r->last_frame_ms > r->talker_timeout_ms)
         release_talker(r, "frame watchdog");
+
+    /* Periodically dump the roster so an operator can see who is connected. */
+    if (r->roster_interval_s > 0 && now - r->last_roster >= r->roster_interval_s) {
+        log_roster(r);
+        r->last_roster = now;
+    }
 }

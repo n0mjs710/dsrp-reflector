@@ -96,6 +96,11 @@ shared notion of who currently holds the channel).
   the EOT is lost. (MMDVMHost itself uses a 1500 ms net watchdog.)
 - **No echo**: never relay a stream back to its originator.
 - **Poll reply** (optional): respond to polls with a `0x00` status packet.
+- **Roster logging** (optional): every `RosterInterval` seconds, emit the list
+  of connected repeaters (address + last-heard callsign + poll version), one per
+  line, so an operator can audit who is connected without watching for the
+  per-event connect/disconnect lines. Driven off the same clock tick as the
+  timeout sweep; `0` disables it.
 
 ## 5. Jitter / loss tolerance — why a single reflector is enough
 

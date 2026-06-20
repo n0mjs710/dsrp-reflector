@@ -73,10 +73,10 @@ static void usage(const char *argv0)
 {
     fprintf(stderr,
         "Usage: %s [options]\n"
-        "  -f FILE   read settings from an INI config file\n"
+        "  -c FILE   read settings from an INI config file\n"
         "  -b ADDR   bind address (overrides config)\n"
         "  -p PORT   listen port (overrides config)\n"
-        "  -c CALL   reflector callsign, <=8 chars (overrides config)\n"
+        "  -C CALL   reflector callsign, <=8 chars (overrides config)\n"
         "  -v        verbose / debug logging (overrides config)\n"
         "  -h        this help\n"
         "\n"
@@ -92,9 +92,9 @@ int main(int argc, char **argv)
 
     /* Pass 1: load the config file (if any) before applying CLI overrides. */
     int opt;
-    while ((opt = getopt(argc, argv, "f:b:p:c:vh")) != -1) {
+    while ((opt = getopt(argc, argv, "c:b:p:C:vh")) != -1) {
         switch (opt) {
-        case 'f':
+        case 'c':
             if (config_load(&cfg, optarg) != 0)
                 return 1;
             break;
@@ -111,11 +111,11 @@ int main(int argc, char **argv)
 
     /* Pass 2: command-line overrides win over the config file. */
     optind = 1;
-    while ((opt = getopt(argc, argv, "f:b:p:c:vh")) != -1) {
+    while ((opt = getopt(argc, argv, "c:b:p:C:vh")) != -1) {
         switch (opt) {
         case 'b': snprintf(cfg.address, sizeof cfg.address, "%s", optarg); break;
         case 'p': snprintf(cfg.port, sizeof cfg.port, "%s", optarg); break;
-        case 'c': snprintf(cfg.callsign, sizeof cfg.callsign, "%s", optarg); break;
+        case 'C': snprintf(cfg.callsign, sizeof cfg.callsign, "%s", optarg); break;
         case 'v': cfg.debug = true; break;
         default: break;
         }
@@ -135,8 +135,9 @@ int main(int argc, char **argv)
     reflector_init(&refl, sock, &cfg);
 
     log_msg("dsrp-reflector listening on %s:%s as \"%.8s\"", cfg.address, cfg.port, cfg.callsign);
-    log_msg("config: client_timeout=%ds talker_timeout=%dms status_reply=%s",
-            cfg.client_timeout_s, cfg.talker_timeout_ms, cfg.status_reply ? "on" : "off");
+    log_msg("config: client_timeout=%ds talker_timeout=%dms status_reply=%s roster_interval=%ds",
+            cfg.client_timeout_s, cfg.talker_timeout_ms, cfg.status_reply ? "on" : "off",
+            cfg.roster_interval_s);
 
     struct pollfd pfd = { .fd = sock, .events = POLLIN };
 

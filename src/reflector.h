@@ -55,6 +55,8 @@ typedef struct {
     /* Tunables. */
     int      client_timeout_s;   /* drop a repeater after this long with no poll */
     int      talker_timeout_ms;  /* release the lock if frames stop (lost EOT) */
+    int      roster_interval_s;  /* log connected repeaters every N s (0 = off) */
+    time_t   last_roster;        /* wall-clock seconds of last roster dump */
 
     /* Status reply. */
     bool     status_reply;       /* whether to answer polls with a 0x00 packet */
