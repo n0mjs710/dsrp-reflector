@@ -33,8 +33,10 @@ typedef struct {
     socklen_t               addrlen;
     time_t                  last_poll;   /* wall-clock seconds of last poll */
     char                    info[40];    /* poll version text, e.g. linux_mmdvm-... */
-    char                    call[12];    /* last-heard MYCALL1, trimmed */
-    bool                    have_call;
+    char                    rptcall[12]; /* repeater callsign (RPT1), trimmed */
+    bool                    have_rptcall;
+    char                    lastheard[12]; /* last-heard user (MYCALL1), trimmed */
+    bool                    have_lastheard;
     int64_t                 status_sent_ms; /* monotonic ms of last status reply */
 } client_t;
 

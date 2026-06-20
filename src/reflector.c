@@ -144,22 +144,26 @@ static void extract_poll_text(const unsigned char *buf, size_t len,
     out[n] = '\0';
 }
 
-/* Log the currently connected repeaters, one per line, with address and the
- * best identifying information we have (last-heard callsign and poll version). */
+/* Log the currently connected repeaters, one per line, with address, the
+ * repeater callsign (RPT1), the last-heard user (MYCALL1), and the poll
+ * version string. Both callsigns are learned on first transmission, so they
+ * read "-" until the repeater has been keyed at least once. */
 static void log_roster(const reflector_t *r)
 {
     int n = count_clients(r);
     log_msg("connected repeaters: %d", n);
     for (int i = 0; i < MAX_CLIENTS; i++) {
-        if (!r->clients[i].used)
+        const client_t *c = &r->clients[i];
+        if (!c->used)
             continue;
         char who[64];
-        addr_str(&r->clients[i].addr, who, sizeof who);
-        const char *call = r->clients[i].have_call ? r->clients[i].call : "-";
-        if (r->clients[i].info[0] != '\0')
-            log_msg("  %-24s %-8s [%s]", who, call, r->clients[i].info);
+        addr_str(&c->addr, who, sizeof who);
+        const char *rpt = c->have_rptcall   ? c->rptcall   : "-";
+        const char *usr = c->have_lastheard ? c->lastheard : "-";
+        if (c->info[0] != '\0')
+            log_msg("  %-24s %-8s  last heard: %-8s  [%s]", who, rpt, usr, c->info);
         else
-            log_msg("  %-24s %-8s", who, call);
+            log_msg("  %-24s %-8s  last heard: %-8s", who, rpt, usr);
     }
 }
 
@@ -296,7 +300,7 @@ void reflector_handle(reflector_t *r, unsigned char *buf, size_t len,
 
         if (r->talking && r->talker != idx) {
             log_dbg("header from %s (id %04X) ignored; %s holds the channel",
-                    who, id, r->clients[r->talker].call);
+                    who, id, r->clients[r->talker].rptcall);
             return;
         }
 
@@ -317,8 +321,14 @@ void reflector_handle(reflector_t *r, unsigned char *buf, size_t len,
             snprintf(r->talk_mycall, sizeof r->talk_mycall, "%s", my1);
             snprintf(r->talk_urcall, sizeof r->talk_urcall, "%s", ur);
 
-            snprintf(r->clients[idx].call, sizeof r->clients[idx].call, "%s", my1);
-            r->clients[idx].have_call = true;
+            /* RPT1 identifies the repeater itself; MYCALL1 is the user keying
+             * it. Track them separately for the roster. */
+            if (r1[0] != '\0') {
+                snprintf(r->clients[idx].rptcall, sizeof r->clients[idx].rptcall, "%s", r1);
+                r->clients[idx].have_rptcall = true;
+            }
+            snprintf(r->clients[idx].lastheard, sizeof r->clients[idx].lastheard, "%s", my1);
+            r->clients[idx].have_lastheard = true;
 
             log_msg("TX start: %s/%s -> %s via %s/%s | %s id=%04X -> %d listener(s)",
                     my1, my2, ur, r1, r2, who, id, count_clients(r) - 1);
@@ -378,9 +388,9 @@ void reflector_tick(reflector_t *r)
 
             char who[64];
             addr_str(&r->clients[i].addr, who, sizeof who);
-            if (r->clients[i].have_call)
+            if (r->clients[i].have_rptcall)
                 log_msg("repeater disconnected (timeout): %s [%s] (%d connected)",
-                        who, r->clients[i].call, count_clients(r));
+                        who, r->clients[i].rptcall, count_clients(r));
             else
                 log_msg("repeater disconnected (timeout): %s (%d connected)",
                         who, count_clients(r));

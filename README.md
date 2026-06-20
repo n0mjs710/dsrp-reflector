@@ -61,19 +61,22 @@ Settings can be supplied via an INI file (`-c`). See
 Connects, disconnects, and each transmission are logged as they happen. In
 addition, every `RosterInterval` seconds (default 300; set `0` to disable) the
 reflector logs the full list of currently connected repeaters — one per line,
-with source `IP:port`, last-heard callsign, and the repeater's poll version
-string — so an operator watching the journal can see at a glance who is and
-isn't connected:
+with source `IP:port`, the repeater callsign, the last-heard user, and the
+repeater's poll version string — so an operator watching the journal can see at
+a glance who is and isn't connected:
 
 ```
 I: connected repeaters: 2
-I:   198.51.100.7:20011     N0MJS    [linux_mmdvm-20210101]
-I:   203.0.113.4:20011      W0XYZ    [linux_mmdvm-20210101]
+I:   198.51.100.7:20011      WB2XYZ B  last heard: N0MJS     [linux_mmdvm-20210101]
+I:   203.0.113.4:20011       W0XYZ  B  last heard: W0XYZ     [linux_mmdvm-20210101]
 ```
 
-A repeater that hasn't keyed up yet shows `-` for the callsign (its address is
-still known from its polls). Under systemd the lines land in the journal:
-`journalctl -u dsrp-reflector -f`.
+The DSRP poll carries no callsign, so both callsigns are learned from the
+D-Star header the first time a repeater is keyed: the **repeater** column is
+`RPT1` (the repeater/module itself), and **last heard** is `MYCALL1` (the user
+who last transmitted through it). Until a repeater has been keyed at least once
+both read `-`, though its address is already known from its polls. Under systemd
+the lines land in the journal: `journalctl -u dsrp-reflector -f`.
 
 ## How a repeater connects
 
